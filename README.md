@@ -6,7 +6,11 @@ A Streamlit application powered by **Google Gemini AI** that converts raw Telugu
 
 ## 🚀 Features
 
-- **Direct Transcript Ingestion**: Paste rough transcripts (speech-to-text, meeting notes, lecture transcripts).
+- **🎙️ Audio & Voice Input (Gemini Speech-to-Text)**:
+  - **Upload Audio/Video files**: Supports MP3, WAV, M4A, OGG, AAC, MP4, and MOV (voice notes, lecture videos, meetings).
+  - **Live Microphone Recording**: Tap the mic to record directly in the browser.
+  - **Smart Filler Word Removal**: Gemini automatically filters out filler words ("ums", "uhs", pauses) while accurately preserving natural spoken Tanglish/Telugu.
+- **Direct Transcript Ingestion**: Paste rough text transcripts or load lecture snippets.
 - **Tanglish Prompt Architecture**: Specially engineered with few-shot examples to maintain high retention, conversational Telugu flow, and punchy hooks.
 - **Interactive Chat & Refinement**: Chat with Gemini to tweak the hook, shorten lines, add analogies (like Swiggy, Biryani, Type-C charger), or switch slang.
 - **Teleprompter & Reel Estimator**: Live word counter and estimated speaking time (~140 wpm).

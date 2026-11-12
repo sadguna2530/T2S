@@ -119,6 +119,9 @@ if "chat_messages" not in st.session_state:
 if "final_script" not in st.session_state:
     st.session_state.final_script = ""
 
+if "transcript_text" not in st.session_state:
+    st.session_state.transcript_text = ""
+
 # Sidebar for Config & API Key
 with st.sidebar:
     st.title("⚙️ Gemini Settings")
@@ -182,10 +185,89 @@ with st.sidebar:
     """)
     
     if st.button("🧹 Clear Conversation & Reset", use_container_width=True):
+        st.session_state.transcript_text = ""
         st.session_state.generated_scripts = ""
         st.session_state.chat_messages = []
         st.session_state.final_script = ""
         st.rerun()
+
+# Helper to detect audio MIME type
+def get_mime_type(uploaded_file):
+    if hasattr(uploaded_file, "type") and uploaded_file.type:
+        return uploaded_file.type
+    name = uploaded_file.name.lower()
+    if name.endswith(".mp3"):
+        return "audio/mp3"
+    elif name.endswith(".wav"):
+        return "audio/wav"
+    elif name.endswith(".m4a"):
+        return "audio/m4a"
+    elif name.endswith(".ogg"):
+        return "audio/ogg"
+    elif name.endswith(".aac"):
+        return "audio/aac"
+    elif name.endswith(".mp4"):
+        return "video/mp4"
+    elif name.endswith(".mov"):
+        return "video/quicktime"
+    return "audio/mp3"
+
+# Helper function to transcribe audio with Gemini
+def transcribe_audio_with_gemini(audio_bytes, mime_type: str):
+    key = st.session_state.api_key
+    if not key:
+        st.error("⚠️ Please enter your Gemini API Key in the sidebar or set GEMINI_API_KEY secret.")
+        return None
+        
+    try:
+        from google import genai
+        from google.genai import types
+        
+        client = genai.Client(api_key=key)
+        
+        part = types.Part.from_bytes(
+            data=audio_bytes,
+            mime_type=mime_type
+        )
+        
+        transcribe_prompt = """You are an advanced speech-to-text AI model.
+Please transcribe the spoken content in this audio recording accurately.
+
+Guidelines:
+1. Accurately transcribe spoken Telugu, English, and natural Tanglish (Telugu mixed with English).
+2. Automatically filter out conversational filler words ('ums', 'uhs', 'ahs', throat clearing, false starts, and accidental repetitions).
+3. Preserve all technical terms (API, LLM, RAG, MCP, Database, Backend, Frontend, Server, Tokens, Cloud) and speaker analogies.
+4. Add rough timestamps (e.g. [00:00], [00:30]) or logical paragraph breaks where topics transition.
+5. Return the clean transcript text directly without introductory fluff.
+"""
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=[part, transcribe_prompt]
+            )
+            return response.text
+        except Exception as api_err:
+            err_str = str(api_err)
+            if any(term in err_str.upper() for term in ["NOT_FOUND", "404", "UNAVAILABLE", "NOT AVAILABLE", "RESOURCE_EXHAUSTED"]):
+                st.warning(f"⚠️ Model `{model_name}` had an issue ({err_str[:90]}...). Trying fallback models...")
+                candidate_models = ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+                for fb in candidate_models:
+                    if fb == model_name:
+                        continue
+                    try:
+                        fb_response = client.models.generate_content(
+                            model=fb,
+                            contents=[part, transcribe_prompt]
+                        )
+                        st.success(f"✅ Transcribed successfully using fallback model `{fb}`!")
+                        return fb_response.text
+                    except Exception:
+                        continue
+            st.error(f"Error transcribing audio: {api_err}")
+            return None
+    except Exception as e:
+        st.error(f"Error initializing Gemini client: {e}")
+        return None
 
 # Helper function to call Gemini
 def call_gemini(prompt: str, chat_history=None):
@@ -258,41 +340,114 @@ st.markdown('<div class="main-header">🎙️ Transcript ➔ Instagram Reel Scri
 st.markdown('<div class="sub-header">Convert Telugu/Tanglish lecture transcripts into viral 30-45s Instagram scripts with Gemini AI.</div>', unsafe_allow_html=True)
 
 # Tabs
-tab1, tab2, tab3 = st.tabs(["📝 1. Generate Scripts", "💬 2. Chat & Refine", "🎬 3. Final Script & Teleprompter"])
+tab1, tab2, tab3 = st.tabs(["🎙️ 1. Input & Transcribe", "💬 2. Chat & Refine", "🎬 3. Final Script & Teleprompter"])
 
-# TAB 1: GENERATE
+# TAB 1: INPUT & TRANSCRIBE
 with tab1:
-    st.subheader("Step 1: Paste Your Transcript")
+    st.subheader("Step 1: Provide Audio or Transcript")
     
     sample_transcript_snippet = """[00:00:30] llms and drag systems అంటే ఏంటి అని అంటే నార్మల్గా llms ఎలా work అవుతాయి just టెక్స్కిని predict చేస్తూ ఉంటాయి... and llm itself is a master chef with no hands.
 దీనికి work చేయడానికి hands లేవు, brain మాత్రం ఒకటి ఉంది. Hands అంటే tools - internet connectivity, gmail, whatsapp connect చేయడం...
 [00:09:00] Model context protocol (MCP) acts as a universal USB-C adapter to plug chips into any pantry..."""
 
-    transcript_input = st.text_area(
-        "Raw Transcript (Telugu / English / Mix):",
-        height=220,
-        placeholder="Paste your rough video transcript here...",
-        value=""
+    input_method = st.radio(
+        "Choose Input Method:",
+        ["🎙️ Audio / Voice Input (Gemini Speech-to-Text)", "✍️ Paste Text Transcript"],
+        horizontal=True
     )
     
-    col_a, col_b = st.columns([1, 4])
-    with col_a:
-        generate_btn = st.button("🚀 Generate Scripts", type="primary", use_container_width=True)
-    with col_b:
-        if st.button("📋 Load Sample Transcript (Day 12 Snippet)"):
-            transcript_input = sample_transcript_snippet
-            st.rerun()
+    if input_method == "🎙️ Audio / Voice Input (Gemini Speech-to-Text)":
+        audio_choice = st.radio(
+            "Audio Source:",
+            ["📁 Upload Audio/Video File", "🎤 Record Live Voice (Microphone)"],
+            horizontal=True
+        )
+        
+        audio_bytes = None
+        mime_type = "audio/mp3"
+        
+        if audio_choice == "📁 Upload Audio/Video File":
+            uploaded_file = st.file_uploader(
+                "Upload voice note, lecture recording, or video:",
+                type=["mp3", "wav", "m4a", "ogg", "aac", "mp4", "mov"],
+                help="Gemini automatically transcribes and filters out filler words ('ums', 'uhs')."
+            )
+            if uploaded_file is not None:
+                audio_bytes = uploaded_file.read()
+                mime_type = get_mime_type(uploaded_file)
+                st.audio(audio_bytes, format=mime_type)
+        else:
+            voice_recording = st.audio_input("Tap microphone to record voice note:")
+            if voice_recording is not None:
+                audio_bytes = voice_recording.read()
+                mime_type = "audio/wav"
+                st.audio(audio_bytes, format="audio/wav")
+                
+        if audio_bytes is not None:
+            col_t1, col_t2 = st.columns([1, 1])
+            with col_t1:
+                transcribe_btn = st.button("🎧 1. Transcribe Audio (Gemini STT)", type="primary", use_container_width=True)
+            with col_t2:
+                transcribe_and_gen_btn = st.button("⚡ Transcribe & Generate Reel Scripts Directly", use_container_width=True)
+                
+            if transcribe_btn or transcribe_and_gen_btn:
+                with st.spinner("🤖 Gemini Speech-to-Text is transcribing and removing filler words ('ums', 'uhs')..."):
+                    transcript_res = transcribe_audio_with_gemini(audio_bytes, mime_type)
+                    if transcript_res:
+                        st.session_state.transcript_text = transcript_res
+                        st.success("✨ Audio transcribed cleanly!")
+                        if transcribe_and_gen_btn:
+                            with st.spinner("🚀 Generating Instagram scripts..."):
+                                gen_prompt = f"""Target Length: {reel_length}
 
-    if generate_btn:
-        if not transcript_input.strip():
-            st.warning("Please paste a transcript first.")
+Here is the raw lecture transcript:
+\"\"\"
+{transcript_res}
+\"\"\"
+
+Convert this transcript into 3 to 4 distinct, viral Instagram Reel scripts in natural Tanglish (Telugu + English). 
+Follow the exact style of the provided examples (Hook -> Analogy -> Core insight -> Pro rule / Teaser).
+Make each script focus on one clear concept.
+"""
+                                script_res = call_gemini(gen_prompt)
+                                if script_res:
+                                    st.session_state.generated_scripts = script_res
+                                    st.session_state.final_script = script_res
+                                    st.session_state.chat_messages = [
+                                        {"role": "user", "content": f"Generate Instagram scripts for this transcript:\n{transcript_res[:400]}..."},
+                                        {"role": "assistant", "content": script_res}
+                                    ]
+                                    st.success("🎬 Scripts generated! Check below or head to 'Chat & Refine'.")
+
+    else:
+        # Paste Text Transcript
+        col_s1, col_s2 = st.columns([3, 1])
+        with col_s2:
+            if st.button("📋 Load Sample (Day 12 Snippet)"):
+                st.session_state.transcript_text = sample_transcript_snippet
+                st.rerun()
+
+    # Shared Editable Transcript Area
+    st.markdown("#### 📜 Transcript (Review / Edit):")
+    edited_transcript = st.text_area(
+        "Transcript Content:",
+        value=st.session_state.transcript_text,
+        height=180,
+        placeholder="Paste your transcript or transcribe audio/voice note above...",
+        key="transcript_area"
+    )
+    st.session_state.transcript_text = edited_transcript
+
+    if st.button("🚀 Generate Instagram Scripts", type="primary", use_container_width=True):
+        if not edited_transcript.strip():
+            st.warning("Please provide a transcript or record/upload audio first.")
         else:
             with st.spinner("🤖 Gemini is analyzing the transcript and creating viral Tanglish scripts..."):
                 generation_prompt = f"""Target Length: {reel_length}
 
 Here is the raw lecture transcript:
 \"\"\"
-{transcript_input}
+{edited_transcript}
 \"\"\"
 
 Convert this transcript into 3 to 4 distinct, viral Instagram Reel scripts in natural Tanglish (Telugu + English). 
@@ -303,9 +458,8 @@ Make each script focus on one clear concept (e.g. Master Chef with no hands, Typ
                 if result:
                     st.session_state.generated_scripts = result
                     st.session_state.final_script = result
-                    # Reset chat with initial generation
                     st.session_state.chat_messages = [
-                        {"role": "user", "content": f"Generate Instagram scripts for this transcript:\n{transcript_input[:400]}..."},
+                        {"role": "user", "content": f"Generate Instagram scripts for this transcript:\n{edited_transcript[:400]}..."},
                         {"role": "assistant", "content": result}
                     ]
                     st.success("✨ Scripts generated successfully! Head over to 'Chat & Refine' tab to customize.")
