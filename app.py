@@ -145,12 +145,27 @@ with st.sidebar:
     if api_key_input:
         st.session_state.api_key = api_key_input
 
-    model_name = st.selectbox(
+    models_list = [
+        "gemini-3.8-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.6-flash",
+        "gemini-3.1-flash-lite",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+        "Custom model..."
+    ]
+    
+    selected_option = st.selectbox(
         "Gemini Model",
-        options=["gemini-3.8-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-3.8-pro"],
+        options=models_list,
         index=0,
-        help="gemini-3.8-flash is the latest fast model recommended by Google AI."
+        help="Google AI Studio models. If one is unavailable, the app will offer fallbacks."
     )
+    
+    if selected_option == "Custom model...":
+        model_name = st.text_input("Enter Model ID:", value="gemini-3.5-flash-lite")
+    else:
+        model_name = selected_option
     
     reel_length = st.select_slider(
         "Target Reel Duration",
@@ -205,15 +220,35 @@ def call_gemini(prompt: str, chat_history=None):
             temperature=0.8,
         )
         
-        response = client.models.generate_content(
-            model=model_name,
-            contents=contents,
-            config=config
-        )
-        return response.text
-    except Exception as e:
-        st.error(f"Error calling Gemini: {e}")
-        return None
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=contents,
+                config=config
+            )
+            return response.text
+        except Exception as api_err:
+            err_str = str(api_err)
+            # If model is unavailable / not found, try available fallbacks automatically
+            if any(term in err_str.upper() for term in ["NOT_FOUND", "404", "UNAVAILABLE", "NOT AVAILABLE", "RESOURCE_EXHAUSTED"]):
+                st.warning(f"⚠️ Model `{model_name}` had an issue ({err_str[:90]}...). Trying fallback models...")
+                candidate_models = ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.1-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"]
+                for fb in candidate_models:
+                    if fb == model_name:
+                        continue
+                    try:
+                        fb_response = client.models.generate_content(
+                            model=fb,
+                            contents=contents,
+                            config=config
+                        )
+                        st.success(f"✅ Generated successfully using fallback model `{fb}`!")
+                        return fb_response.text
+                    except Exception:
+                        continue
+            # If all fallbacks fail or another error occurred, show the exact error
+            st.error(f"Error calling Gemini: {api_err}")
+            return None
 
 # Main App Header
 st.markdown('<div class="main-header">🎙️ Transcript ➔ Instagram Reel Scripts</div>', unsafe_allow_html=True)
