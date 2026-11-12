@@ -82,11 +82,23 @@ Class-lo live-ga oka image-ni simple prompt-tho generate chesam. Tarvatha techni
 Idi Day 3 maatrame. Repu Day 4-lo vibe coding ante enti, Python introduction gurinchi cheptam.
 
 Example 4:
-**Day 12: LLM is a Master Chef with no hands**
-LLM ki antha telusu, kani okka email kooda enduku pampaledo telusa?
-Endukante LLM ante hands leni oka Master Chef lantidi. Brain undi, recipes anni telusu, kani vegetable cut cheyadaniki hands levu!
-Ah hands e mana "Tools & APIs" — Weather API, Gmail, WhatsApp connectivity.
-Brain ki tools connect chesthene, AI real world lo panulu chestundi.
+**Day 5: LLMs and RAG Systems**
+LLM ante oka master chef with no hands. Brain unna, pani cheyadaniki tools levu.
+RAG system vachi, aa chef ki internet connectivity lanti hands isthundi.
+Ippudu chef ki updated knowledge untundi, plus ye tool eppudu vadalo kuda telusu.
+Idi Day 5 maatrame. Repu Day 6-lo MCP ante enti, daani gurinchi cheptam.
+
+Example 5:
+**Day 6: Model Context Protocol - MCP**
+Model Context Protocol (MCP) ante oka universal USB-C adapter lanti di.
+Idi lekapothe, prati tool ki separate ga code rayali. Unte, chips ni ye pantry lo aina plug cheyochu.
+Idi Day 6 maatrame. Repu Day 7-lo AI agents ante enti, Python introduction gurinchi cheptam.
+
+Example 6:
+**Day 7: AI Agents & Prompt Injection**
+AI agent ki hands unna, human approval lekunda payments lanti panulu cheyinchakudadu.
+Security lekpote, prompt injection tho mee system ni break chesi data dongilinchachu.
+Idi Day 7 maatrame. Repu Day 8-lo tool calling ante enti, Python introduction gurinchi cheptam.
 
 When given a transcript:
 1. Extract the best high-retention angles/ideas.
@@ -135,9 +147,9 @@ with st.sidebar:
 
     model_name = st.selectbox(
         "Gemini Model",
-        options=["gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.5-pro"],
+        options=["gemini-3.8-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-3.8-pro"],
         index=0,
-        help="gemini-2.5-flash is fast and recommended for quick creative writing."
+        help="gemini-3.8-flash is the latest fast model recommended by Google AI."
     )
     
     reel_length = st.select_slider(
