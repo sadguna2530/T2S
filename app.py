@@ -149,8 +149,8 @@ with st.sidebar:
         st.session_state.api_key = api_key_input
 
     models_list = [
-        "gemini-3.8-flash",
         "gemini-3.5-flash-lite",
+        "gemini-3.8-flash",
         "gemini-3.6-flash",
         "gemini-3.1-flash-lite",
         "gemini-2.0-flash",
@@ -162,7 +162,7 @@ with st.sidebar:
         "Gemini Model",
         options=models_list,
         index=0,
-        help="Google AI Studio models. If one is unavailable, the app will offer fallbacks."
+        help="gemini-3.5-flash-lite is fast, reliable, and recommended on the free tier."
     )
     
     if selected_option == "Custom model...":
@@ -390,15 +390,20 @@ with tab1:
             with col_t2:
                 transcribe_and_gen_btn = st.button("⚡ Transcribe & Generate Reel Scripts Directly", use_container_width=True)
                 
-            if transcribe_btn or transcribe_and_gen_btn:
+            if transcribe_btn:
                 with st.spinner("🤖 Gemini Speech-to-Text is transcribing and removing filler words ('ums', 'uhs')..."):
                     transcript_res = transcribe_audio_with_gemini(audio_bytes, mime_type)
                     if transcript_res:
                         st.session_state.transcript_text = transcript_res
-                        st.success("✨ Audio transcribed cleanly!")
-                        if transcribe_and_gen_btn:
-                            with st.spinner("🚀 Generating Instagram scripts..."):
-                                gen_prompt = f"""Target Length: {reel_length}
+                        st.session_state.transcription_alert = "✨ Audio transcribed cleanly! Review the transcript below."
+                        st.rerun()
+
+            if transcribe_and_gen_btn:
+                with st.spinner("🤖 Gemini Speech-to-Text is transcribing and generating scripts..."):
+                    transcript_res = transcribe_audio_with_gemini(audio_bytes, mime_type)
+                    if transcript_res:
+                        st.session_state.transcript_text = transcript_res
+                        gen_prompt = f"""Target Length: {reel_length}
 
 Here is the raw lecture transcript:
 \"\"\"
@@ -409,15 +414,16 @@ Convert this transcript into 3 to 4 distinct, viral Instagram Reel scripts in na
 Follow the exact style of the provided examples (Hook -> Analogy -> Core insight -> Pro rule / Teaser).
 Make each script focus on one clear concept.
 """
-                                script_res = call_gemini(gen_prompt)
-                                if script_res:
-                                    st.session_state.generated_scripts = script_res
-                                    st.session_state.final_script = script_res
-                                    st.session_state.chat_messages = [
-                                        {"role": "user", "content": f"Generate Instagram scripts for this transcript:\n{transcript_res[:400]}..."},
-                                        {"role": "assistant", "content": script_res}
-                                    ]
-                                    st.success("🎬 Scripts generated! Check below or head to 'Chat & Refine'.")
+                        script_res = call_gemini(gen_prompt)
+                        if script_res:
+                            st.session_state.generated_scripts = script_res
+                            st.session_state.final_script = script_res
+                            st.session_state.chat_messages = [
+                                {"role": "user", "content": f"Generate Instagram scripts for this transcript:\n{transcript_res[:400]}..."},
+                                {"role": "assistant", "content": script_res}
+                            ]
+                            st.session_state.transcription_alert = "✨ Audio transcribed and scripts generated successfully! Check below."
+                            st.rerun()
 
     else:
         # Paste Text Transcript
@@ -427,19 +433,22 @@ Make each script focus on one clear concept.
                 st.session_state.transcript_text = sample_transcript_snippet
                 st.rerun()
 
+    if st.session_state.get("transcription_alert"):
+        st.success(st.session_state.transcription_alert)
+        st.session_state.transcription_alert = ""
+
     # Shared Editable Transcript Area
     st.markdown("#### 📜 Transcript (Review / Edit):")
-    edited_transcript = st.text_area(
+    st.text_area(
         "Transcript Content:",
-        value=st.session_state.transcript_text,
-        height=180,
+        height=220,
         placeholder="Paste your transcript or transcribe audio/voice note above...",
-        key="transcript_area"
+        key="transcript_text"
     )
-    st.session_state.transcript_text = edited_transcript
 
     if st.button("🚀 Generate Instagram Scripts", type="primary", use_container_width=True):
-        if not edited_transcript.strip():
+        raw_transcript = st.session_state.transcript_text.strip()
+        if not raw_transcript:
             st.warning("Please provide a transcript or record/upload audio first.")
         else:
             with st.spinner("🤖 Gemini is analyzing the transcript and creating viral Tanglish scripts..."):
@@ -447,7 +456,7 @@ Make each script focus on one clear concept.
 
 Here is the raw lecture transcript:
 \"\"\"
-{edited_transcript}
+{raw_transcript}
 \"\"\"
 
 Convert this transcript into 3 to 4 distinct, viral Instagram Reel scripts in natural Tanglish (Telugu + English). 
@@ -459,12 +468,13 @@ Make each script focus on one clear concept (e.g. Master Chef with no hands, Typ
                     st.session_state.generated_scripts = result
                     st.session_state.final_script = result
                     st.session_state.chat_messages = [
-                        {"role": "user", "content": f"Generate Instagram scripts for this transcript:\n{edited_transcript[:400]}..."},
+                        {"role": "user", "content": f"Generate Instagram scripts for this transcript:\n{raw_transcript[:400]}..."},
                         {"role": "assistant", "content": result}
                     ]
-                    st.success("✨ Scripts generated successfully! Head over to 'Chat & Refine' tab to customize.")
+                    st.rerun()
 
     if st.session_state.generated_scripts:
+        st.markdown("---")
         st.markdown("### 🎯 Generated Instagram Scripts:")
         st.markdown(st.session_state.generated_scripts)
 
