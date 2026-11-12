@@ -249,6 +249,9 @@ def call_gemini(prompt: str, chat_history=None):
             # If all fallbacks fail or another error occurred, show the exact error
             st.error(f"Error calling Gemini: {api_err}")
             return None
+    except Exception as e:
+        st.error(f"Error initializing Gemini client: {e}")
+        return None
 
 # Main App Header
 st.markdown('<div class="main-header">🎙️ Transcript ➔ Instagram Reel Scripts</div>', unsafe_allow_html=True)
