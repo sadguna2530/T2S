@@ -113,11 +113,15 @@ with st.sidebar:
     
     # Check secrets or env first
     default_key = ""
-    if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
-        default_key = st.secrets["GEMINI_API_KEY"]
-    elif os.getenv("GEMINI_API_KEY"):
-        default_key = os.getenv("GEMINI_API_KEY")
-    elif st.session_state.api_key:
+    try:
+        if "GEMINI_API_KEY" in st.secrets:
+            default_key = st.secrets["GEMINI_API_KEY"]
+    except Exception:
+        pass
+
+    if not default_key:
+        default_key = os.getenv("GEMINI_API_KEY", "")
+    if not default_key and st.session_state.api_key:
         default_key = st.session_state.api_key
         
     api_key_input = st.text_input(
